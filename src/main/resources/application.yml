@@ -1,3 +1,14 @@
+quarkus:
+  datasource:
+    db-kind: "postgresql"
+  hibernate-orm:
+    database:
+      generation: drop-and-create
+    log:
+      sql: true
+    sql-load-script: import-dev.sql
+  swagger-ui:
+    display-request-duration: true
 greeting:
   message: "hello"
 mp:

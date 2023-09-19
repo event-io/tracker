@@ -1,7 +1,5 @@
 package org.eventio;
 
-import io.quarkus.test.common.QuarkusTestResource;
-import io.quarkus.test.common.QuarkusTestResourceLifecycleManager;
 import io.quarkus.test.junit.QuarkusTest;
 
 import org.eclipse.microprofile.reactive.messaging.Message;

@@ -46,10 +46,10 @@ public class RouteService {
         return Route.find("url", id).project(RouteDTO.class).firstResult();
     }
 
-    public Uni<File> getFavicon(String id, TrackOperation operation) throws FaviconNotFoundException {
+    public Uni<File> getFavicon(String id, TrackOperation operation) {
         if (TrackOperation.READ.equals(operation))
-            throw new FaviconNotFoundException("Favicon not found for read operation");
-        File file = new File("src/main/resources/META-INF/resources/favicon.ico");
+            return Uni.createFrom().failure(new FaviconNotFoundException("Favicon not found for read operation"));
+        File file = new File("src/main/resources/META-INF/resources/favicon-alien.ico");
         return Uni.createFrom().item(file);
     }
 }

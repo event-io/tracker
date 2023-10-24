@@ -58,11 +58,14 @@ public class TrackService {
                 .collect().asList()
                 .map(list -> list.stream().mapToInt(Integer::intValue).sum());
 
+        return readIdentification(complementary).chain(this::get);
+    }
+
+    public Uni<Long> readIdentification(Uni<Integer> complementary) {
         Uni<Integer> maxIdentifier = Route.count("#Route.maxIdentifier").map(Long::intValue);
         return Uni.combine().all().unis(complementary, maxIdentifier)
                 .combinedWith((complement, max) -> (~complement)&max)
-                .map(Integer::toUnsignedLong)
-                .chain(this::get);
+                .map(Integer::toUnsignedLong);
     }
 
 }

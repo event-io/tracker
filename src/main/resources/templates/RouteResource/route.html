@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="shortcut icon" href="/routes/{routeUrl}/favicon.ico" type="image/x-icon"/>
+    <title>Route</title>
+</head>
+<body>
+<h1>Stai per essere reindirizzato...</h1>
+<p>Se non venissi reindirizzato automaticamente, <a href="{redirectUrl}">clicca qui</a>.</p>
+
+<script>
+    // Imposta il timeout di 100 millisecondi prima di eseguire il redirect
+    setTimeout(function () {
+        window.location.href = "{redirectUrl}";
+    }, {timeout});
+</script>
+</body>
+</html>

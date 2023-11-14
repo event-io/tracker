@@ -1,5 +1,7 @@
 package org.eventio.resources;
 
+import io.quarkus.qute.CheckedTemplate;
+import io.quarkus.qute.TemplateInstance;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
@@ -23,6 +25,11 @@ import java.util.UUID;
 @Consumes(MediaType.APPLICATION_JSON)
 public class RouteResource {
 
+    @CheckedTemplate
+    public static class Templates {
+        public static native Uni<TemplateInstance> route(String routeUrl, String redirectUrl, long timeout);
+    }
+
     @Inject
     RouteService routeService;
 
@@ -43,22 +50,19 @@ public class RouteResource {
     @GET
     @Path("/{id}")
     @Produces(MediaType.TEXT_HTML)
-    public Uni<Response> getRoutePage(@PathParam("id") String id, @CookieParam("session") Cookie sessionCookie) {
-        return routeService.get(id).map(route -> {
-            Response.ResponseBuilder response = Response.ok("<html><body><h1>Route: " + route.getUrl() + "</h1></body></html>");
-            if (sessionCookie == null || sessionCookie.getValue() == null) {
-                var cookie = new NewCookie.Builder("session").sameSite(NewCookie.SameSite.STRICT).value(UUID.randomUUID().toString()).build();
-                response = response.cookie(cookie);
-            }
-            return response.build();
-        });
+    public Uni<TemplateInstance> getRoutePage(@PathParam("id") String routeUrl) {
+        return Templates.route(routeUrl, "/tracks/auto", 100);
     }
 
     @GET
     @Path("/{id}/favicon.ico")
     @Produces("image/x-icon")
-    public Uni<File> getFavicon(@PathParam("id") String routeUrl, @HeaderParam("x-track-operation") TrackOperation operation, @CookieParam("session") Cookie sessionCookie) {
+    public Uni<File> getFavicon(@PathParam("id") String routeUrl, @HeaderParam("operation") TrackOperation operation, @CookieParam("session") Cookie sessionCookie) {
         return routeService.getFavicon(routeUrl, operation).onItemOrFailure().call(() -> sessionService.addVisited(Long.valueOf(sessionCookie.getValue()), routeUrl));
+    }
+
+    private Response.ResponseBuilder addRedirectHeaders(Response.ResponseBuilder builder) {
+        return null;
     }
 
 }

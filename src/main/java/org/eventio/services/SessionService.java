@@ -25,6 +25,10 @@ public class SessionService {
     @Inject
     TrackService trackService;
 
+    public Uni<SessionDTO> get(Long id) {
+        return Session.findById(id).map(s -> sessionMapper.map((Session) s));
+    }
+
     @WithTransaction
     public Uni<SessionDTO> create(String target, TrackOperation operation) {
         Session session = Session.builder()

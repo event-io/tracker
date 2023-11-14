@@ -40,12 +40,6 @@ public class TrackResource {
         return trackService.write(uriInfo.getRequestUri().toString(), uriInfo.getRequestUri().getHost());
     }
 
-//    @GET
-//    public Multi<TrackDTO> getAll() {
-//        return trackService.getAll()
-//                .onItem().transformToMulti(list -> Multi.createFrom().iterable(list));
-//    }
-
     @GET
     @Path("/{id}")
     public Uni<TrackDTO> get(Long id) {
@@ -60,28 +54,28 @@ public class TrackResource {
     @GET
     @Path("/auto")
     @Produces(MediaType.TEXT_HTML)
-    public Uni<Response> auto(@QueryParam("x-track-operation") TrackOperation operation, @QueryParam("target") String target, @CookieParam("session") Cookie sessionCookie, @CookieParam("track") Cookie trackCookie) {
+    public Uni<Response> auto(@QueryParam("operation") TrackOperation operation, @QueryParam("target") String target, @QueryParam("routeUrl") String routeUrl, @CookieParam("session") Cookie sessionCookie, @CookieParam("track") Cookie trackCookie) {
         if (trackCookie != null && !StringUtil.isNullOrEmpty(trackCookie.getValue())) {
             return Uni.createFrom().item(Response.temporaryRedirect(URI.create("urlshort/" + target)).build());
         }
-        if (TrackOperation.WRITE.equals(operation)) {
-            Uni<WriteResponseDTO> writeInstruction = trackService.write(uriInfo.getRequestUri().toString(), uriInfo.getRequestUri().getHost());
-            return writeInstruction.map(dto -> Response.temporaryRedirect(URI.create("routes/" + dto.getRoutes().toArray(String[]::new)[0])).build());
+        Uni<SessionDTO> sessionDTO;
+        if (sessionCookie != null && !StringUtil.isNullOrEmpty(sessionCookie.getValue())) {
+            sessionDTO = sessionService.get(Long.valueOf(sessionCookie.getValue()));
         } else {
-            Uni<SessionDTO> sessionDTO = sessionService.create(target, operation);
-            return sessionDTO.flatMap(session -> {
-                var cookie = new NewCookie.Builder("session").sameSite(NewCookie.SameSite.STRICT).value(session.getId().toString()).build();
-                Uni<RouteDTO> nextRoute = sessionService.nextRoute(null, null); //TODO: if WRITE set track to null
-                // check if routeDTO is null
-                return nextRoute.onItem().ifNotNull().transform(route -> Response.temporaryRedirect(URI.create("routes/" + route.getUrl())).cookie(cookie).build())
-                        .onItem().ifNull().switchTo(sessionFinished(session, cookie, operation, target));
-            });
+            sessionDTO = sessionService.create(target, operation);
         }
+        return sessionDTO.flatMap(session -> {
+            var cookie = new NewCookie.Builder("session").sameSite(NewCookie.SameSite.STRICT).value(session.getId().toString()).build();
+            Uni<RouteDTO> nextRoute = sessionService.nextRoute(null, routeUrl); //TODO: if WRITE set track to null
+            // check if routeDTO is null
+            return nextRoute.onItem().ifNotNull().transform(route -> Response.temporaryRedirect(URI.create("routes/" + route.getUrl())).cookie(cookie).build())
+                    .onItem().ifNull().switchTo(sessionFinished(session, cookie));
+        });
     }
 
     @WithTransaction
-    private Uni<Response> sessionFinished(SessionDTO session, NewCookie sessionCookie, TrackOperation operation, String target) {
-        if (TrackOperation.READ.equals(operation)) {
+    private Uni<Response> sessionFinished(SessionDTO session, NewCookie sessionCookie) {
+        if (TrackOperation.READ.equals(session.getOperation())) {
             Uni<Long> trackId = trackService.readIdentification(Uni.createFrom().item(session.getVisited().intValue()));
             return trackId.flatMap(id -> {
                 if (id == 0) {
@@ -116,7 +110,7 @@ public class TrackResource {
                 }
             });
         } else {
-            return Uni.createFrom().item(Response.temporaryRedirect(URI.create("urlshort/" + target)).build());
+            return Uni.createFrom().item(Response.temporaryRedirect(URI.create("urlshort/" + session.getTarget())).build());
         }
     }
 

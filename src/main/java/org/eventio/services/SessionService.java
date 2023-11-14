@@ -7,26 +7,34 @@ import jakarta.inject.Inject;
 import org.eventio.dto.RouteDTO;
 import org.eventio.dto.SessionDTO;
 import org.eventio.dto.TrackOperation;
-import org.eventio.entities.Route;
 import org.eventio.entities.Session;
 import org.eventio.mapper.SessionMapper;
+import org.eventio.repository.RouteRepository;
+import org.eventio.repository.SessionRepository;
 
 import java.util.Comparator;
 
 @ApplicationScoped
 public class SessionService {
 
-    @Inject
-    SessionMapper sessionMapper;
+    private final SessionMapper sessionMapper;
+
+    private final RouteService routeService;
+
+    private final RouteRepository routeRepository;
+
+    private final SessionRepository sessionRepository;
 
     @Inject
-    RouteService routeService;
-
-    @Inject
-    TrackService trackService;
+    public SessionService(SessionMapper sessionMapper, RouteService routeService, RouteRepository routeRepository, SessionRepository sessionRepository) {
+        this.sessionMapper = sessionMapper;
+        this.routeService = routeService;
+        this.routeRepository = routeRepository;
+        this.sessionRepository = sessionRepository;
+    }
 
     public Uni<SessionDTO> get(Long id) {
-        return Session.findById(id).map(s -> sessionMapper.map((Session) s));
+        return sessionRepository.findById(id).map(sessionMapper::map);
     }
 
     @WithTransaction
@@ -36,45 +44,44 @@ public class SessionService {
                 .operation(operation)
                 .build();
 
-        return session.persistAndFlush().map(s -> sessionMapper.map((Session) s));
+        return sessionRepository.persistAndFlush(session).map(sessionMapper::map);
     }
 
     public Uni<RouteDTO> nextRoute(Long trackId, String routeUrl) {
         if (routeUrl == null) {
-            return Route.find("bitPosition", 1).project(RouteDTO.class).firstResult();
+            return routeRepository.find("bitPosition", 1).project(RouteDTO.class).firstResult();
         }
 
         if (trackId == null) {
             return routeService.get(routeUrl).flatMap(route -> {
-                var bitPosition = getNextBitValue(route.getBitPosition());
-                return Route.find("bitPosition", bitPosition).project(RouteDTO.class).firstResult();
+                var bitPosition = getNextBitValue(route.bitPosition());
+                return routeRepository.find("bitPosition", bitPosition).project(RouteDTO.class).firstResult();
             });
         }
 
         return routeService.getByTrackId(trackId).map(list -> {
-            RouteDTO currentRoute = list.stream().filter(route -> route.getUrl().equals(routeUrl))
+            RouteDTO currentRoute = list.stream().filter(route -> route.url().equals(routeUrl))
                     .findFirst().orElse(routeService.get(routeUrl).await().indefinitely());
             return list.stream()
-                    .filter(route -> route.getBitPosition() > currentRoute.getBitPosition())
-                    .min(Comparator.comparingInt(RouteDTO::getBitPosition)).orElse(null);
+                    .filter(route -> route.bitPosition() > currentRoute.bitPosition())
+                    .min(Comparator.comparingInt(RouteDTO::bitPosition)).orElse(null);
         });
     }
 
     @WithTransaction
     public Uni<Session> addVisited(Long sessionId, String routeUrl) {
         return Uni.combine().all().unis(
-                Session.findById(sessionId).map(o -> (Session) o),
+                sessionRepository.findById(sessionId),
                 routeService.get(routeUrl)
-        ).combinedWith((session, route) -> {
-            session.setVisited(session.getVisited() + route.getBitPosition());
-            session.persistAndFlush();
-            return session;
+        ).withUni((session, route) -> {
+            session.setVisited(session.getVisited() + route.bitPosition());
+            return sessionRepository.persistAndFlush(session);
         });
     }
 
     private long getNextBitValue(long previousBitValue) {
         long exp = (long) (Math.log(previousBitValue) / Math.log(2));
-        return (long) Math.pow(2, exp + 1);
+        return (long) Math.pow(2, exp + 1.0);
     }
 
 

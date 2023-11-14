@@ -8,10 +8,9 @@ import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.*;
 import org.eventio.dto.*;
-import org.eventio.entities.Route;
-import org.eventio.entities.Session;
-import org.eventio.entities.Track;
-import org.eventio.services.RouteService;
+import org.eventio.repository.RouteRepository;
+import org.eventio.repository.SessionRepository;
+import org.eventio.repository.TrackRepository;
 import org.eventio.services.SessionService;
 import org.eventio.services.TrackService;
 
@@ -23,17 +22,28 @@ import java.util.Set;
 @Consumes(MediaType.APPLICATION_JSON)
 public class TrackResource {
 
-    @Inject
-    TrackService trackService;
+    public static final String PATH_ROUTES = "routes/";
+    private final TrackService trackService;
 
-    @Inject
-    SessionService sessionService;
+    private final SessionService sessionService;
 
-    @Inject
-    RouteService routeService;
+    private final RouteRepository routeRepository;
+
+    private final SessionRepository sessionRepository;
+
+    private final TrackRepository trackRepository;
 
     @Context
     UriInfo uriInfo;
+
+    @Inject
+    public TrackResource(TrackService trackService, SessionService sessionService, RouteRepository routeRepository, SessionRepository sessionRepository, TrackRepository trackRepository) {
+        this.trackService = trackService;
+        this.sessionService = sessionService;
+        this.routeRepository = routeRepository;
+        this.sessionRepository = sessionRepository;
+        this.trackRepository = trackRepository;
+    }
 
     @POST
     public Uni<WriteResponseDTO> writeIdentification() {
@@ -65,52 +75,50 @@ public class TrackResource {
             sessionDTO = sessionService.create(target, operation);
         }
         return sessionDTO.flatMap(session -> {
-            var cookie = new NewCookie.Builder("session").sameSite(NewCookie.SameSite.STRICT).value(session.getId().toString()).build();
+            var cookie = new NewCookie.Builder("session").sameSite(NewCookie.SameSite.STRICT).value(session.id().toString()).build();
             Uni<RouteDTO> nextRoute = sessionService.nextRoute(null, routeUrl); //TODO: if WRITE set track to null
             // check if routeDTO is null
-            return nextRoute.onItem().ifNotNull().transform(route -> Response.temporaryRedirect(URI.create("routes/" + route.getUrl())).cookie(cookie).build())
+            return nextRoute.onItem().ifNotNull().transform(route -> Response.temporaryRedirect(URI.create(PATH_ROUTES + route.url())).cookie(cookie).build())
                     .onItem().ifNull().switchTo(sessionFinished(session, cookie));
         });
     }
 
     @WithTransaction
     private Uni<Response> sessionFinished(SessionDTO session, NewCookie sessionCookie) {
-        if (TrackOperation.READ.equals(session.getOperation())) {
-            Uni<Long> trackId = trackService.readIdentification(Uni.createFrom().item(session.getVisited().intValue()));
+        if (TrackOperation.READ.equals(session.operation())) {
+            Uni<Long> trackId = trackService.readIdentification(Uni.createFrom().item(session.visited().intValue()));
             return trackId.flatMap(id -> {
                 if (id == 0) {
                     Uni<TrackDTO> trackDTO = trackService.createTrack(uriInfo.getRequestUri().toString(), uriInfo.getRequestUri().getHost());
-                    return trackDTO.flatMap(dto -> Track.findById(dto.getId())).map(o -> (Track) o).flatMap(track -> {
-                        var trackCookie = new NewCookie.Builder("track").sameSite(NewCookie.SameSite.STRICT).value(track.id.toString()).build();
-                        return Session.findById(session.getId()).flatMap(s -> {
-                            Session sessionEntity = (Session) s;
+                    return trackDTO.flatMap(dto -> trackRepository.findById(dto.id())).flatMap(track -> {
+                        var trackCookie = new NewCookie.Builder("track").sameSite(NewCookie.SameSite.STRICT).value(track.getId().toString()).build();
+                        return sessionRepository.findById(session.id()).flatMap(sessionEntity -> {
                             sessionEntity.setTrack(track);
                             sessionEntity.setVisited(0);
                             sessionEntity.setOperation(TrackOperation.WRITE);
-                            sessionEntity.persistAndFlush();
+                            sessionRepository.persistAndFlush(sessionEntity).await().indefinitely();
                             Uni<RouteDTO> nextRoute = sessionService.nextRoute(null, null);
-                            return nextRoute.map(route -> Response.temporaryRedirect(URI.create("routes/" + route.getUrl())).cookie(trackCookie).cookie(sessionCookie).build());
+                            return nextRoute.map(route -> Response.temporaryRedirect(URI.create(PATH_ROUTES + route.url())).cookie(trackCookie).cookie(sessionCookie).build());
                         });
                     });
                 } else {
-                    return Track.findById(id).map(o -> (Track) o).flatMap(track -> {
+                    return trackRepository.findById(id).flatMap(track -> {
                         // TODO: verificare se il redirect setta il track cokie così da evitare il redirect sull'ultima rotta solo per il set del cookie
                         var trackCookie = new NewCookie.Builder("track").sameSite(NewCookie.SameSite.STRICT).value(id.toString()).build();
-                        return Route.findAll(Sort.descending("bitPosition")).firstResult().map(o -> (Route) o).flatMap(route ->
-                            Session.findById(session.getId()).map(s -> {
-                                Session sessionEntity = (Session) s;
+                        return routeRepository.findAll(Sort.descending("bitPosition")).firstResult().flatMap(route ->
+                            sessionRepository.findById(session.id()).map(sessionEntity -> {
                                 sessionEntity.setTrack(track);
                                 sessionEntity.setVisited(id);
                                 sessionEntity.setOperation(TrackOperation.WRITE);
-                                sessionEntity.persistAndFlush();
-                                return Response.temporaryRedirect(URI.create("routes/" + route.getUrl())).cookie(trackCookie).cookie(sessionCookie).build();
+                                sessionRepository.persistAndFlush(sessionEntity).await().indefinitely();
+                                return Response.temporaryRedirect(URI.create(PATH_ROUTES + route.getUrl())).cookie(trackCookie).cookie(sessionCookie).build();
                             })
                         );
                     });
                 }
             });
         } else {
-            return Uni.createFrom().item(Response.temporaryRedirect(URI.create("urlshort/" + session.getTarget())).build());
+            return Uni.createFrom().item(Response.temporaryRedirect(URI.create("urlshort/" + session.target())).build());
         }
     }
 

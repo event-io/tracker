@@ -1,10 +1,6 @@
 package org.eventio.entities;
 
-import io.quarkus.hibernate.reactive.panache.PanacheEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.NamedQueries;
-import jakarta.persistence.NamedQuery;
+import jakarta.persistence.*;
 import lombok.*;
 
 @Getter
@@ -17,7 +13,11 @@ import lombok.*;
     @NamedQuery(name = "Route.maxIdentifier", query = "SELECT sum(r.bitPosition) FROM Route r"),
     @NamedQuery(name = "Route.getRoutesByTrack", query = "FROM Route r WHERE mod(?1 / r.bitPosition, 2) = 1")
 })
-public class Route extends PanacheEntity {
+public class Route {
+
+    @Id
+    @GeneratedValue
+    private Long id;
 
     @Column(name = "bit_position", nullable = false, unique = true)
     private int bitPosition;

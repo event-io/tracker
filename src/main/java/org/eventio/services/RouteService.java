@@ -4,10 +4,12 @@ import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import org.eventio.dto.RouteDTO;
 import org.eventio.dto.TrackOperation;
 import org.eventio.entities.Route;
 import org.eventio.exceptions.FaviconNotFoundException;
+import org.eventio.repository.RouteRepository;
 
 import java.io.File;
 import java.util.List;
@@ -16,16 +18,22 @@ import java.util.UUID;
 @ApplicationScoped
 public class RouteService {
 
+    private final RouteRepository routeRepository;
+
+    @Inject
+    public RouteService(RouteRepository routeRepository) {
+        this.routeRepository = routeRepository;
+    }
+
     Uni<Route> ensureRoutes(long id) {
-        return Route.count("#Route.maxIdentifier")
+        return routeRepository.count("#Route.maxIdentifier")
                 .chain(sum -> {
                     Log.infof("sum: %d", sum);
                     if (id > sum) {
-                        return Route.builder()
+                        return routeRepository.persistAndFlush(Route.builder()
                                 .bitPosition(sum.intValue()+1)
                                 .url(UUID.randomUUID().toString())
-                                .build()
-                                .persistAndFlush();
+                                .build());
                     }
                     return Uni.createFrom().nullItem();
                 });
@@ -33,17 +41,17 @@ public class RouteService {
 
     @WithTransaction
     public Uni<List<RouteDTO>> getAll() {
-        return Route.findAll().project(RouteDTO.class).list();
+        return routeRepository.findAll().project(RouteDTO.class).list();
     }
 
     @WithTransaction
     public Uni<List<RouteDTO>> getByTrackId(Long id) {
-        return Route.find("#Route.getRoutesByTrack", id).project(RouteDTO.class).list();
+        return routeRepository.find("#Route.getRoutesByTrack", id).project(RouteDTO.class).list();
     }
 
     @WithTransaction
     public Uni<RouteDTO> get(String id) {
-        return Route.find("url", id).project(RouteDTO.class).firstResult();
+        return routeRepository.find("url", id).project(RouteDTO.class).firstResult();
     }
 
     public Uni<File> getFavicon(String id, TrackOperation operation) {

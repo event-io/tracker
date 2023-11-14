@@ -8,7 +8,6 @@ import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.NewCookie;
 import jakarta.ws.rs.core.Response;
 import org.eventio.dto.RouteDTO;
 import org.eventio.dto.TrackOperation;
@@ -17,7 +16,6 @@ import org.eventio.services.SessionService;
 
 import java.io.File;
 import java.util.List;
-import java.util.UUID;
 
 @RequestScoped
 @Path("/routes")
@@ -30,11 +28,15 @@ public class RouteResource {
         public static native Uni<TemplateInstance> route(String routeUrl, String redirectUrl, long timeout);
     }
 
-    @Inject
-    RouteService routeService;
+    private final RouteService routeService;
+
+    private final SessionService sessionService;
 
     @Inject
-    SessionService sessionService;
+    public RouteResource(RouteService routeService, SessionService sessionService) {
+        this.routeService = routeService;
+        this.sessionService = sessionService;
+    }
 
     @GET
     public Uni<List<RouteDTO>> getRoutesByTrack(@QueryParam("trackId") Long trackId) {

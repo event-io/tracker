@@ -10,6 +10,7 @@ import org.eventio.dto.TrackOperation;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
+@ToString
 public class Session {
 
     @Id

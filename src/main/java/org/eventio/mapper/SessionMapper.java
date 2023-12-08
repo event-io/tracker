@@ -12,7 +12,7 @@ public interface SessionMapper {
     SessionDTO map(Session session);
 
     default Long map(Track track) {
-        return track.getId();
+        return track == null ? null : track.getId();
     }
 
 }

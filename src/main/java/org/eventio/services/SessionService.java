@@ -4,6 +4,7 @@ import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import lombok.extern.slf4j.Slf4j;
 import org.eventio.dto.RouteDTO;
 import org.eventio.dto.SessionDTO;
 import org.eventio.dto.TrackOperation;
@@ -14,6 +15,7 @@ import org.eventio.repository.SessionRepository;
 
 import java.util.Comparator;
 
+@Slf4j
 @ApplicationScoped
 public class SessionService {
 
@@ -37,14 +39,13 @@ public class SessionService {
         return sessionRepository.findById(id).map(sessionMapper::map);
     }
 
-    @WithTransaction
     public Uni<SessionDTO> create(String target, TrackOperation operation) {
         Session session = Session.builder()
                 .target(target)
                 .operation(operation)
                 .build();
 
-        return sessionRepository.persistAndFlush(session).map(sessionMapper::map);
+        return sessionRepository.persistAndFlush(session).onFailure().invoke(Throwable::printStackTrace).map(sessionMapper::map);
     }
 
     public Uni<RouteDTO> nextRoute(Long trackId, String routeUrl) {
@@ -68,14 +69,14 @@ public class SessionService {
         });
     }
 
-    @WithTransaction
     public Uni<Session> addVisited(Long sessionId, String routeUrl) {
         return Uni.combine().all().unis(
                 sessionRepository.findById(sessionId),
                 routeService.get(routeUrl)
         ).withUni((session, route) -> {
+            log.info("session: {}, route: {}", session, route);
             session.setVisited(session.getVisited() + route.bitPosition());
-            return sessionRepository.persistAndFlush(session);
+            return sessionRepository.persistAndFlush(session).onItem().invoke(session1 -> log.info("Saved: {}", session1)).onFailure().invoke(Throwable::printStackTrace);
         });
     }
 

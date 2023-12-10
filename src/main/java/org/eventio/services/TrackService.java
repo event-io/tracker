@@ -96,25 +96,26 @@ public class TrackService {
 
     @WithTransaction
     public Uni<Response> auto(TrackOperation operation, String target, String routeUrl, Cookie sessionCookie, Cookie trackCookie, String requestUri, String requestHost) {
-        if (trackCookie != null && !StringUtil.isNullOrEmpty(trackCookie.getValue())) {
-            return sessionService.get(Long.valueOf(sessionCookie.getValue())).map(
-                    session -> Response.temporaryRedirect(URI.create("urlshort/" + session.target())).build()
-            );
-        }
         Uni<SessionDTO> sessionDTO;
+        Uni<Response> response = Uni.createFrom().nullItem();
+        if (trackCookie != null && !StringUtil.isNullOrEmpty(trackCookie.getValue())) {
+             response = sessionService.get(Long.valueOf(sessionCookie.getValue())).map(session ->
+                session.visited() >= session.track() ? Response.temporaryRedirect(URI.create("urlshort/" + session.target())).build() : null
+             );
+        }
         if (sessionCookie != null && !StringUtil.isNullOrEmpty(sessionCookie.getValue())) {
             sessionDTO = sessionService.get(Long.valueOf(sessionCookie.getValue()));
         } else {
             sessionDTO = sessionService.create(target, operation);
         }
-        return sessionDTO.flatMap(session -> {
+        return response.onItem().ifNull().switchTo(sessionDTO.flatMap(session -> {
             var cookie = new NewCookie.Builder(SESSION_COOKIE_NAME).sameSite(NewCookie.SameSite.STRICT).value(session.id().toString()).httpOnly(true).path("/").build();
             //TODO: if WRITE set track to null
             Uni<RouteDTO> nextRoute = sessionService.nextRoute(null, routeUrl);
             // check if routeDTO is null
             return nextRoute.onItem().ifNotNull().transform(route -> Response.temporaryRedirect(URI.create(PATH_ROUTES + route.url())).cookie(cookie).build())
                     .onItem().ifNull().switchTo(sessionFinished(session, cookie, requestUri, requestHost));
-        });
+        }));
     }
 
     private Uni<Response> sessionFinished(SessionDTO session, NewCookie sessionCookie, String requestUri, String requestHost) {

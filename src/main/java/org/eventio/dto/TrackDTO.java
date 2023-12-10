@@ -1,18 +1,6 @@
 package org.eventio.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
+import lombok.*;
 
-@Getter
 @Builder
-@AllArgsConstructor
-public class TrackDTO {
-
-    private Long id;
-
-    private String ip;
-
-    private String usr;
-
-}
+public record TrackDTO(Long id, String ip, String usr) {}

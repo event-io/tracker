@@ -1,6 +1,8 @@
 quarkus:
   datasource:
     db-kind: "postgresql"
+    devservices:
+      port: 5433
   hibernate-orm:
     database:
       generation: drop-and-create
@@ -9,6 +11,12 @@ quarkus:
     sql-load-script: import-dev.sql
   swagger-ui:
     display-request-duration: true
+  http:
+    same-site-cookie:
+      session:
+        value: strict
+      track:
+        value: strict
 greeting:
   message: "hello"
 mp:

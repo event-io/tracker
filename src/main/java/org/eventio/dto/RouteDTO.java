@@ -1,20 +1,6 @@
 package org.eventio.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
-@Getter
-@Setter
-@AllArgsConstructor
 @Builder
-public class RouteDTO {
-
-    private Long id;
-
-    private int bitPosition;
-
-    private String url;
-
-}
+public record RouteDTO(Long id, int bitPosition, String url) {}

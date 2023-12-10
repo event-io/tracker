@@ -18,9 +18,7 @@
         document.location.href = "" + documentLocation + "/{redirectUrl}";
     document.head.appendChild(favicon);
     globalThis.f = favicon;
-    const windowLocation = window.location.host;
-    favicon.href = "" + windowLocation + "/routes/{routeUrl}/favicon.ico";
-    console.log(document.cookie)
+    favicon.href = "/routes/{routeUrl}/favicon.ico";
 </script>
 </body>
 </html>

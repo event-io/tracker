@@ -75,8 +75,11 @@ public class SessionService {
                 routeService.get(routeUrl)
         ).withUni((session, route) -> {
             log.info("session: {}, route: {}", session, route);
-            session.setVisited(session.getVisited() + route.bitPosition());
-            return sessionRepository.persistAndFlush(session).onItem().invoke(session1 -> log.info("Saved: {}", session1)).onFailure().invoke(Throwable::printStackTrace);
+            if (session.getVisited() < route.bitPosition()) {
+                session.setVisited(session.getVisited() + route.bitPosition());
+                return sessionRepository.persistAndFlush(session).onItem().invoke(session1 -> log.info("Saved: {}", session1)).onFailure().invoke(Throwable::printStackTrace);
+            }
+            return Uni.createFrom().item(session);
         });
     }
 

@@ -27,6 +27,8 @@ import static org.eventio.resources.TrackResource.PATH_ROUTES;
 @ApplicationScoped
 public class TrackService {
 
+    public static final String TRACK_COOKIE_NAME = "track";
+    public static final String SESSION_COOKIE_NAME = "session";
     private final RouteService routeService;
 
     private final RouteRepository routeRepository;
@@ -95,7 +97,9 @@ public class TrackService {
     @WithTransaction
     public Uni<Response> auto(TrackOperation operation, String target, String routeUrl, Cookie sessionCookie, Cookie trackCookie, String requestUri, String requestHost) {
         if (trackCookie != null && !StringUtil.isNullOrEmpty(trackCookie.getValue())) {
-            return Uni.createFrom().item(Response.temporaryRedirect(URI.create("urlshort/" + target)).build());
+            return sessionService.get(Long.valueOf(sessionCookie.getValue())).map(
+                    session -> Response.temporaryRedirect(URI.create("urlshort/" + session.target())).build()
+            );
         }
         Uni<SessionDTO> sessionDTO;
         if (sessionCookie != null && !StringUtil.isNullOrEmpty(sessionCookie.getValue())) {
@@ -104,7 +108,7 @@ public class TrackService {
             sessionDTO = sessionService.create(target, operation);
         }
         return sessionDTO.flatMap(session -> {
-            var cookie = new NewCookie.Builder("session").sameSite(NewCookie.SameSite.STRICT).value(session.id().toString()).httpOnly(true).path("/").build();
+            var cookie = new NewCookie.Builder(SESSION_COOKIE_NAME).sameSite(NewCookie.SameSite.STRICT).value(session.id().toString()).httpOnly(true).path("/").build();
             //TODO: if WRITE set track to null
             Uni<RouteDTO> nextRoute = sessionService.nextRoute(null, routeUrl);
             // check if routeDTO is null
@@ -124,7 +128,7 @@ public class TrackService {
                             .build()).onFailure().invoke(Throwable::printStackTrace);
                     return trackUni.flatMap(track -> {
                         log.info("track created: {}", track);
-                        var trackCookie = new NewCookie.Builder("track").sameSite(NewCookie.SameSite.STRICT).value(track.getId().toString()).httpOnly(true).path("/").build();
+                        var trackCookie = new NewCookie.Builder(TRACK_COOKIE_NAME).sameSite(NewCookie.SameSite.STRICT).value(track.getId().toString()).httpOnly(true).path("/").build();
                         return sessionRepository.findById(session.id()).flatMap(sessionEntity -> {
                             sessionEntity.setTrack(track);
                             sessionEntity.setVisited(0);
@@ -138,7 +142,7 @@ public class TrackService {
                     return trackRepository.findById(id).flatMap(track -> {
                         log.info("track found: {}", track);
                         // TODO: verificare se il redirect setta il track cokie così da evitare il redirect sull'ultima rotta solo per il set del cookie
-                        var trackCookie = new NewCookie.Builder("track").sameSite(NewCookie.SameSite.STRICT).value(id.toString()).httpOnly(true).path("/").build();
+                        var trackCookie = new NewCookie.Builder(TRACK_COOKIE_NAME).sameSite(NewCookie.SameSite.STRICT).value(id.toString()).httpOnly(true).path("/").build();
                         return routeRepository.findAll(Sort.descending("bitPosition")).firstResult().flatMap(route ->
                                 sessionRepository.findById(session.id()).flatMap(sessionEntity -> {
                                     sessionEntity.setTrack(track);

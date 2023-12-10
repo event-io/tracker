@@ -1,6 +1,8 @@
 quarkus:
   datasource:
     db-kind: "postgresql"
+    devservices:
+      port: 5433
   hibernate-orm:
     database:
       generation: drop-and-create
